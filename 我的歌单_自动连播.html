@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的歌单 · 自动连播</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--pink:#ff7b72;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:radial-gradient(900px 500px at 20% -10%,rgba(88,166,255,.10),transparent 60%),var(--bg);
+    font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--text);min-height:100vh;padding:30px 16px 60px;}
+  .wrap{max-width:980px;margin:0 auto;}
+  header{text-align:center;margin-bottom:22px;}
+  header h1{font-size:26px;font-weight:700;}
+  header .sub{color:var(--muted);font-size:13px;margin-top:6px;}
+  .stage{position:sticky;top:12px;z-index:10;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:24px;}
+  .player-box{position:relative;width:100%;max-width:760px;margin:0 auto;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;}
+  .player-box iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+  .unlock{position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;
+    background:radial-gradient(500px 300px at 50% 40%,rgba(88,166,255,.18),transparent 70%),rgba(13,17,23,.82);transition:opacity .25s;}
+  .unlock.hide{opacity:0;pointer-events:none;}
+  .unlock .big{font-size:32px;font-weight:800;color:#fff;letter-spacing:1px;}
+  .unlock .tip{font-size:13px;color:#9fb3c8;text-align:center;padding:0 20px;line-height:1.6;}
+  .unlock .warn{font-size:12px;color:#f0b429;margin-top:2px;}
+  .now{display:flex;align-items:center;gap:14px;margin-top:14px;}
+  .now .info{flex:1;min-width:0;}
+  .now .label{font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;}
+  .now .song{font-size:19px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .now .artist{font-size:14px;color:var(--accent);margin-top:3px;}
+  .now .meta{font-size:12px;color:var(--muted);margin-top:3px;}
+  .ctrls{display:flex;gap:10px;flex-shrink:0;}
+  button{border:none;border-radius:11px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:transform .08s,filter .15s;color:#fff;}
+  button:active{transform:scale(.96);}
+  .btn-play{background:linear-gradient(135deg,#238636,#2ea043);box-shadow:0 6px 18px rgba(35,134,54,.35);}
+  .btn-next{background:linear-gradient(135deg,#58a6ff,#1f6feb);box-shadow:0 6px 18px rgba(31,111,235,.3);}
+  .btn-play:hover,.btn-next:hover{filter:brightness(1.08);}
+  .modes{display:flex;gap:8px;justify-content:center;margin:14px 0 0;flex-wrap:wrap;}
+  .mode-btn{border:1px solid var(--border);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;background:var(--panel);color:var(--muted);transition:all .15s;}
+  .mode-btn:hover{border-color:var(--accent);color:var(--text);}
+  .mode-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(88,166,255,.12);}
+  .auto-switch{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;background:var(--panel);color:var(--muted);transition:all .15s;user-select:none;}
+  .auto-switch:hover{border-color:var(--accent);color:var(--text);}
+  .auto-switch input{accent-color:var(--green);cursor:pointer;width:15px;height:15px;}
+  .auto-switch.on{border-color:var(--green);color:var(--green);background:rgba(63,185,80,.12);}
+  .pbar{display:flex;align-items:center;gap:10px;margin-top:14px;}
+  .progress{flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;cursor:pointer;}
+  .progress:hover{background:#3a4149;}
+  .progress .bar{height:100%;width:0;background:linear-gradient(90deg,#1f6feb,#58a6ff);border-radius:4px;transition:width .9s linear;}
+  .ptime{font-size:12px;color:var(--muted);min-width:86px;text-align:right;font-variant-numeric:tabular-nums;}
+  .addbar{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:16px 0 0;}
+  .btn-add{background:linear-gradient(135deg,#8957e5,#6e40c9);box-shadow:0 6px 18px rgba(137,87,229,.3);}
+  .btn-add:hover{filter:brightness(1.08);}
+  .btn-add.alt{background:var(--panel);border:1px solid var(--border);color:var(--muted);box-shadow:none;font-weight:600;}
+  .btn-add.alt:hover{border-color:var(--accent);color:var(--text);filter:none;}
+  .btn-add.danger{background:var(--panel);border:1px solid var(--border);color:var(--muted);box-shadow:none;font-weight:600;}
+  .btn-add.danger:hover{border-color:var(--pink);color:var(--pink);filter:none;}
+  .btn-add.armed{background:linear-gradient(135deg,#da3633,#b62324)!important;border-color:transparent!important;color:#fff!important;}
+  .item .del{background:none;border:none;color:#5a6470;font-size:15px;padding:2px 7px;border-radius:7px;flex-shrink:0;line-height:1;cursor:pointer;box-shadow:none;}
+  .item .del:hover{color:var(--pink);background:rgba(255,123,114,.13);filter:none;}
+  .empty{text-align:center;color:var(--muted);font-size:14px;padding:36px 18px;border:1px dashed var(--border);border-radius:12px;line-height:2;}
+  .addpanel{display:none;margin-top:14px;padding:14px;background:rgba(137,87,229,.07);border:1px solid var(--border);border-radius:12px;flex-direction:column;gap:9px;}
+  .addpanel.show{display:flex;}
+  .addpanel input{border:1px solid var(--border);background:#0d1117;color:var(--text);border-radius:9px;padding:10px 12px;font-size:14px;font-family:inherit;width:100%;}
+  .addpanel input:focus{outline:none;border-color:var(--accent);}
+  .addrow{display:flex;gap:9px;}
+  .addrow input{flex:1;}
+  .addrow button{flex-shrink:0;}
+  .addmsg{font-size:12px;color:var(--muted);min-height:16px;}
+  .addmsg.err{color:var(--pink);}
+  .addmsg.ok{color:var(--green);}
+  .searchbar{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:9px 13px;margin:8px 0 12px;transition:border-color .15s,box-shadow .15s;}
+  .searchbar:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(88,166,255,.12);}
+  .searchbar .sic{font-size:14px;opacity:.75;flex-shrink:0;}
+  .searchbar input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--text);font-size:14px;font-family:inherit;}
+  .searchbar input::placeholder{color:#6a7683;}
+  .searchbar .sclr{display:none;background:none;border:none;color:#5a6470;font-size:14px;padding:3px 8px;border-radius:7px;box-shadow:none;flex-shrink:0;line-height:1;}
+  .searchbar .sclr:hover{color:var(--pink);background:rgba(255,123,114,.13);filter:none;}
+  .searchbar.has .sclr{display:block;}
+  .srlist{display:flex;flex-direction:column;gap:7px;max-height:330px;overflow-y:auto;}
+  .srlist:empty{display:none;}
+  .sritem{display:flex;align-items:center;gap:10px;background:#0d1117;border:1px solid var(--border);border-radius:10px;padding:9px 11px;}
+  .sritem:hover{border-color:var(--accent);}
+  .sritem .srmain{flex:1;min-width:0;}
+  .sritem .srt{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sritem .sra{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sritem .srwarn{color:#f0b429;}
+  .sritem .sradd{background:linear-gradient(135deg,#238636,#2ea043);padding:7px 13px;font-size:13px;border-radius:8px;flex-shrink:0;box-shadow:none;}
+  .sritem .sradd.done{background:var(--panel);border:1px solid var(--border);color:var(--muted);cursor:default;}
+  .list-title{font-size:14px;color:var(--muted);margin:8px 2px 12px;letter-spacing:1px;}
+  .list{display:grid;grid-template-columns:1fr;gap:8px;}
+  .item{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:10px 14px;cursor:pointer;transition:border-color .15s;}
+  .item:hover{border-color:var(--accent);}
+  .item .rank{width:30px;text-align:center;color:var(--muted);font-size:13px;font-weight:700;flex-shrink:0;}
+  .item .s{font-size:15px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .item .a{font-size:12px;color:var(--muted);flex-shrink:0;}
+  .item .dur{font-size:12px;color:var(--muted);flex-shrink:0;}
+  .item .pc{font-size:12px;color:var(--green);flex-shrink:0;min-width:58px;text-align:right;}
+  .item.playing{border-color:var(--green);box-shadow:0 0 0 1px var(--green);}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:30px;padding-top:18px;border-top:1px solid var(--border);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎵 我的歌单 · 自动连播</h1>
+    <div class="sub">点一次「开始」即可 · 之后自动连播、无需再点 · 一个播放器不挤浏览器<br>歌单能搜、能自己增删、能导入导出 · 也能按歌名直接搜着加</div>
+  </header>
+
+  <div class="stage">
+    <div class="player-box" id="playerBox">
+      <div class="unlock" id="unlockBox">
+        <div class="big">▶ 点击开始播放</div>
+        <div class="tip">只需点这一次，之后自动连播、无需再点<br>（浏览器规定首次播放必须由你手动触发）</div>
+        <div class="warn" id="unlockHint">↓ 下方是完整歌单</div>
+      </div>
+    </div>
+    <div class="now">
+      <div class="info">
+        <div class="label">正在播放 <span id="idxTxt"></span> · <span id="modeTxt">列表播放</span></div>
+        <div class="song" id="nowSong">加载中...</div>
+        <div class="artist" id="nowArtist"></div>
+        <div class="meta" id="nowMeta"></div>
+      </div>
+      <div class="ctrls">
+        <button class="btn-play" id="btnPlay">⏸ 暂停</button>
+        <button class="btn-next" id="btnNext">⏭ 下一首</button>
+      </div>
+    </div>
+    <div class="modes" id="modes">
+      <button class="mode-btn active" data-mode="list">🔁 列表播放</button>
+      <button class="mode-btn" data-mode="random">🎲 随机播放</button>
+      <button class="mode-btn" data-mode="one">🔂 单曲循环</button>
+      <label class="auto-switch" id="autoSwitch"><input type="checkbox" id="autoChk" checked><span id="autoTxt">自动连播：开</span></label>
+    </div>
+    <div class="pbar">
+      <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
+      <div class="ptime" id="ptime">0:00 / 0:00</div>
+    </div>
+  </div>
+
+  <div class="addbar">
+    <button class="btn-add" id="btnAdd">➕ 添加歌曲</button>
+    <button class="btn-add alt" id="btnExport">⬇ 导出歌单</button>
+    <button class="btn-add alt" id="btnImport">⬆ 导入歌单</button>
+    <button class="btn-add alt" id="btnReset">↺ 恢复默认</button>
+    <button class="btn-add danger" id="btnClear">🗑 清空歌单</button>
+    <input type="file" id="fileImport" accept=".json,application/json" style="display:none">
+  </div>
+  <div class="addpanel" id="addPanel">
+    <input id="inpQuery" placeholder="输入「歌名」或「歌名 歌手」，点右边按钮搜索 → 挑一个添加">
+    <div class="addrow">
+      <button class="btn-next" id="btnAddOk">🔍 搜索 / 添加</button>
+      <button class="mode-btn" id="btnAddCancel">取消</button>
+    </div>
+    <div class="addrow" id="manualRow" style="display:none">
+      <input id="inpSong" placeholder="歌名（必填）">
+      <input id="inpArtist" placeholder="歌手（可选）">
+    </div>
+    <div class="addmsg" id="addMsg">也可以直接粘贴 B 站视频链接 / BV 号，会自动识别</div>
+    <div class="srlist" id="srList"></div>
+  </div>
+
+  <div class="searchbar" id="searchBar">
+    <span class="sic">🔍</span>
+    <input id="inpSearch" placeholder="搜歌名或歌手，直接找到那一首（不用一直往下滑）">
+    <button class="sclr" id="btnSearchClear" title="清空搜索">✕</button>
+  </div>
+  <div class="list-title" id="listTitle">歌单（共 <span id="total"></span> 首 · 按播放量排序）</div>
+  <div class="list" id="list"></div>
+
+  <footer>内置歌单来自 Apple Music 歌单「听」· 视频为 B 站对应播放量最高版本<br>歌单存在你自己电脑上，可以随便增删 · 也能导出 JSON 分享给别人</footer>
+</div>
+
+<script>
+const SONGS = [{"song": "富士山下", "artist": "陈奕迅", "bvid": "BV1n24y1V7a6", "play": 14956157, "playTxt": "1495.6万", "title": "在百万豪装录音棚大声听陈奕迅《富士山下》【Hi-res】", "dur": 262, "durTxt": "4:22"}, {"song": "我怀念的", "artist": "孙燕姿", "bvid": "BV1ZM411B7YM", "play": 14257634, "playTxt": "1425.8万", "title": "在百万豪装录音棚大声听孙燕姿《我怀念的》【Hi-res】", "dur": 295, "durTxt": "4:55"}, {"song": "Always Online", "artist": "林俊杰", "bvid": "BV1KH4y117pp", "play": 10837980, "playTxt": "1083.8万", "title": "在百万豪装录音棚大声听 林俊杰《Always Online》【Hi-res】", "dur": 224, "durTxt": "3:44"}, {"song": "遇见", "artist": "孙燕姿", "bvid": "BV1Q44y1M7bB", "play": 10163645, "playTxt": "1016.4万", "title": "【私藏馆】孙燕姿《遇见》爆火神曲！祝大家节日快乐！", "dur": 209, "durTxt": "3:29"}, {"song": "交换余生", "artist": "林俊杰", "bvid": "BV1qo4y1u7Jk", "play": 10013941, "playTxt": "1001.4万", "title": "在百万豪装录音棚大声听 林俊杰《交换余生》【Hi-res】", "dur": 279, "durTxt": "4:39"}, {"song": "江南", "artist": "林俊杰", "bvid": "BV1Sy4y1R75J", "play": 9954480, "playTxt": "995.4万", "title": "在百万豪装录音棚大声听林俊杰《江南》【Hi-res】", "dur": 270, "durTxt": "4:30"}, {"song": "小半", "artist": "陈粒", "bvid": "BV1nP411W7Zo", "play": 9217426, "playTxt": "921.7万", "title": "在百万豪装录音棚大声听  陈粒《小半》【Hi-res】", "dur": 297, "durTxt": "4:57"}, {"song": "夏日漱石", "artist": "橘子海", "bvid": "BV1zf4y1v7bg", "play": 8301611, "playTxt": "830.2万", "title": "橘子海-夏日漱石 MV | OrangeOcean-SUMMER COZY ROCK MV", "dur": 263, "durTxt": "4:23"}, {"song": "新地球", "artist": "林俊杰", "bvid": "BV1RA411X7di", "play": 8032641, "playTxt": "803.3万", "title": "在百万豪装录音棚大声听林俊杰《新地球》【Hi-res】", "dur": 283, "durTxt": "4:43"}, {"song": "爱人错过", "artist": "告五人", "bvid": "BV1Kv4y1q7e1", "play": 7796647, "playTxt": "779.7万", "title": "在百万豪装录音棚大声听告五人《爱人错过》【Hi-res】", "dur": 297, "durTxt": "4:57"}, {"song": "后来的我们", "artist": "五月天", "bvid": "BV1es4y177tg", "play": 7004115, "playTxt": "700.4万", "title": "在百万豪装录音棚大声听五月天《后来的我们》【Hi-res】", "dur": 348, "durTxt": "5:48"}, {"song": "修炼爱情", "artist": "林俊杰", "bvid": "BV1F84y147KS", "play": 6260083, "playTxt": "626.0万", "title": "在百万豪装录音棚大声听林俊杰《修炼爱情》【Hi-res】", "dur": 291, "durTxt": "4:51"}, {"song": "可惜没如果", "artist": "林俊杰", "bvid": "BV1sw411v7YQ", "play": 6250731, "playTxt": "625.1万", "title": "在百万豪装录音棚大声听 林俊杰《可惜没如果》【Hi-res】", "dur": 302, "durTxt": "5:02"}, {"song": "哪里都是你", "artist": "队长", "bvid": "BV1z34y1Y7oR", "play": 6230170, "playTxt": "623.0万", "title": "【杜比音效】队长《哪里都是你》4K「你想要的是现在 而不是那遥远的未来」动态歌词", "dur": 223, "durTxt": "3:43"}, {"song": "人间", "artist": "王菲", "bvid": "BV1YS4y1376b", "play": 5989281, "playTxt": "598.9万", "title": "王菲&常石磊弹唱《人间》，愿疫情阴霾早日散去", "dur": 185, "durTxt": "3:05"}, {"song": "不为谁而作的歌", "artist": "林俊杰", "bvid": "BV1ov4y1i7TZ", "play": 5799895, "playTxt": "580.0万", "title": "在百万豪装录音棚大声听林俊杰《不为谁而作的歌》【Hi-res】", "dur": 270, "durTxt": "4:30"}, {"song": "天外来物", "artist": "薛之谦", "bvid": "BV1oV411X7FM", "play": 5651293, "playTxt": "565.1万", "title": "在百万豪装录音棚大声听 薛之谦《天外来物》【Hi-res】", "dur": 258, "durTxt": "4:18"}, {"song": "爱情转移", "artist": "陈奕迅", "bvid": "BV1Yp4y1o7T9", "play": 5514500, "playTxt": "551.5万", "title": "在百万豪装录音棚大声听 陈奕迅《爱情转移》【Hi-res】", "dur": 261, "durTxt": "4:21"}, {"song": "走马", "artist": "陈粒", "bvid": "BV1KP411t7YD", "play": 5291587, "playTxt": "529.2万", "title": "在百万豪装录音棚大声听 陈粒《走马》【Hi-res】", "dur": 238, "durTxt": "3:58"}, {"song": "给你一瓶魔法药水", "artist": "告五人", "bvid": "BV1so4y177qW", "play": 5159986, "playTxt": "516.0万", "title": "告五人《给你一瓶魔法药水》｜永远22！bilibili毕业歌会", "dur": 262, "durTxt": "4:22"}, {"song": "想自由", "artist": "林宥嘉", "bvid": "BV1Gz4y187d6", "play": 5133856, "playTxt": "513.4万", "title": "在百万豪装录音棚大声听 林宥嘉《想自由》【Hi-res】", "dur": 283, "durTxt": "4:43"}, {"song": "唯一", "artist": "告五人", "bvid": "BV1zD4y1n7dF", "play": 4991947, "playTxt": "499.2万", "title": "在百万豪装录音棚大声听告五人《唯一》【Hi-res】", "dur": 272, "durTxt": "4:32"}, {"song": "贝加尔湖畔", "artist": "李健", "bvid": "BV1Ma4y1N7ZH", "play": 4761203, "playTxt": "476.1万", "title": "在百万豪装录音棚大声听 李健《贝加尔湖畔》【Hi-res】", "dur": 248, "durTxt": "4:08"}, {"song": "我好想你", "artist": "苏打绿", "bvid": "BV1uV4y1d73u", "play": 4692844, "playTxt": "469.3万", "title": "在百万豪装录音棚大声听 苏打绿《我好想你》【Hi-res】", "dur": 329, "durTxt": "5:29"}, {"song": "说谎", "artist": "林宥嘉", "bvid": "BV16m4y1t71Z", "play": 4678854, "playTxt": "467.9万", "title": "在百万豪装录音棚大声听 林宥嘉《说谎》【Hi-res】", "dur": 267, "durTxt": "4:27"}, {"song": "国际歌", "artist": "唐朝乐队", "bvid": "BV1ZM4y1n7Ms", "play": 4626457, "playTxt": "462.6万", "title": "在百万豪装录音棚大声听 唐朝乐队《国际歌》", "dur": 269, "durTxt": "4:29"}, {"song": "百年孤寂", "artist": "王菲", "bvid": "BV1T84y1M7jj", "play": 4553699, "playTxt": "455.4万", "title": "在百万豪装录音棚大声听 王菲《百年孤寂》【Hi-res】", "dur": 318, "durTxt": "5:18"}, {"song": "带我去找夜生活", "artist": "告五人", "bvid": "BV1ov4y1v7AD", "play": 4531256, "playTxt": "453.1万", "title": "在百万豪装录音棚大声听告五人《带我去找夜生活》【Hi-res】", "dur": 307, "durTxt": "5:07"}, {"song": "FANTASTIC BABY", "artist": "BIGBANG", "bvid": "BV1jx41127mo", "play": 4511233, "playTxt": "451.1万", "title": "【BIGBANG】FANTASTIC BABY MV", "dur": 240, "durTxt": "4:00"}, {"song": "葡萄成熟时", "artist": "陈奕迅", "bvid": "BV1Gs4y1V7VS", "play": 4455853, "playTxt": "445.6万", "title": "在百万豪装录音棚大声听陈奕迅《葡萄成熟时》【Hi-res】", "dur": 280, "durTxt": "4:40"}, {"song": "小情歌", "artist": "苏打绿", "bvid": "BV1Ps4y1a7x8", "play": 4433172, "playTxt": "443.3万", "title": "在百万豪装录音棚大声听苏打绿《小情歌》【Hi-res】", "dur": 275, "durTxt": "4:35"}, {"song": "하루하루(一天一天)", "artist": "BIGBANG", "bvid": "BV1wW4y1D7pQ", "play": 4409427, "playTxt": "440.9万", "title": "在百万豪装录音棚大声听 BIGBANG《一天一天》【Hi-res】", "dur": 257, "durTxt": "4:17"}, {"song": "红玫瑰", "artist": "陈奕迅", "bvid": "BV19N411c74F", "play": 4244169, "playTxt": "424.4万", "title": "在百万豪装录音棚大声听 陈奕迅《红玫瑰》【Hi-res】", "dur": 239, "durTxt": "3:59"}, {"song": "我还想她", "artist": "林俊杰", "bvid": "BV17K421x7at", "play": 4100620, "playTxt": "410.1万", "title": "林俊杰《我还想她》百万豪装录音棚大声听【Hi-res】", "dur": 246, "durTxt": "4:06"}, {"song": "她说", "artist": "林俊杰", "bvid": "BV1qw41147hD", "play": 3809819, "playTxt": "381.0万", "title": "在百万豪装录音棚大声听 林俊杰《她说》【Hi-res】", "dur": 320, "durTxt": "5:20"}, {"song": "K歌之王", "artist": "陈奕迅", "bvid": "BV1iN4y1J77s", "play": 3755491, "playTxt": "375.5万", "title": "在百万豪装录音棚大声听 陈奕迅《K歌之王》【Hi-res】", "dur": 225, "durTxt": "3:45"}, {"song": "突然好想你", "artist": "五月天", "bvid": "BV1zo4y1q7Wj", "play": 3692601, "playTxt": "369.3万", "title": "在百万豪装录音棚大声听五月天《突然好想你》【Hi-res】", "dur": 269, "durTxt": "4:29"}, {"song": "好久不见", "artist": "陈奕迅", "bvid": "BV1vP4y1j7AS", "play": 3611550, "playTxt": "361.2万", "title": "【爷青回】陈奕迅《好久不见》王炸神曲！祝大家双十一快乐！", "dur": 246, "durTxt": "4:06"}, {"song": "那些你很冒险的梦", "artist": "林俊杰", "bvid": "BV17N411E7fq", "play": 3526817, "playTxt": "352.7万", "title": "在百万豪装录音棚大声听 林俊杰《那些你很冒险的梦》【Hi-res】", "dur": 248, "durTxt": "4:08"}, {"song": "嚣张", "artist": "en", "bvid": "BV1LF411e7fw", "play": 3333192, "playTxt": "333.3万", "title": "【无损音质】en《嚣张》4K画质「任你肆意玩弄 从没去想 你是有多嚣张」动态歌词版", "dur": 255, "durTxt": "4:15"}, {"song": "陪你去流浪", "artist": "薛之谦", "bvid": "BV1uj411D7PA", "play": 3302038, "playTxt": "330.2万", "title": "在百万豪装录音棚大声听 薛之谦《陪你去流浪》【Hi-res】", "dur": 275, "durTxt": "4:35"}, {"song": "单车", "artist": "陈奕迅", "bvid": "BV146421M7aQ", "play": 3245746, "playTxt": "324.6万", "title": "陈奕迅 《单车》百万豪装录音棚大声听【Hi-res】", "dur": 209, "durTxt": "3:29"}, {"song": "蓝莲花", "artist": "许巍", "bvid": "BV1Hg411s7CL", "play": 3243729, "playTxt": "324.4万", "title": "在百万豪装录音棚大声听许巍《蓝莲花》【Hi-res】", "dur": 276, "durTxt": "4:36"}, {"song": "淘汰", "artist": "陈奕迅", "bvid": "BV1o4421U7vm", "play": 3190674, "playTxt": "319.1万", "title": "陈奕迅《淘汰》百万豪装录音棚大声听【Hi-res】", "dur": 285, "durTxt": "4:45"}, {"song": "僕が死のうと思ったのは", "artist": "中岛美嘉", "bvid": "BV1Pz4y1Y7wo", "play": 2950571, "playTxt": "295.1万", "title": "在百万豪装录音棚大声听 中岛美嘉《僕が死のうと思ったのは（曾经我也想过一了百了）》【Hi-res】", "dur": 382, "durTxt": "6:22"}, {"song": "白玫瑰", "artist": "陈奕迅", "bvid": "BV19o4y1j7gj", "play": 2766478, "playTxt": "276.6万", "title": "在百万豪装录音棚大声听 陈奕迅《白玫瑰》【Hi-res】", "dur": 243, "durTxt": "4:03"}, {"song": "曾经的你", "artist": "许巍", "bvid": "BV1R64y1A74z", "play": 2735852, "playTxt": "273.6万", "title": "在百万豪装录音棚大声听 许巍《曾经的你》【Hi-res】", "dur": 262, "durTxt": "4:22"}, {"song": "倔强", "artist": "五月天", "bvid": "BV1a8411o71x", "play": 2732534, "playTxt": "273.3万", "title": "在百万豪装录音棚大声听 五月天《倔强》【Hi-res】", "dur": 264, "durTxt": "4:24"}, {"song": "陪你度过漫长岁月", "artist": "陈奕迅", "bvid": "BV1624y1T7PL", "play": 2578644, "playTxt": "257.9万", "title": "在百万豪装录音棚大声听 陈奕迅《陪你度过漫长岁月》【Hi-res】", "dur": 243, "durTxt": "4:03"}, {"song": "Style", "artist": "Taylor Swift", "bvid": "BV1uY41197mg", "play": 2465806, "playTxt": "246.6万", "title": "百万级装备听《Style》- Taylor Swift【Hi-Res】", "dur": 231, "durTxt": "3:51"}, {"song": "You Belong With Me", "artist": "Taylor Swift", "bvid": "BV1za4y1W7Cf", "play": 2449325, "playTxt": "244.9万", "title": "【Taylor Swift】You Belong With Me (4K修复)", "dur": 235, "durTxt": "3:55"}, {"song": "干杯", "artist": "五月天", "bvid": "BV1K8411Z7GJ", "play": 2354673, "playTxt": "235.5万", "title": "在百万豪装录音棚大声听 五月天《干杯》【Hi-res】", "dur": 289, "durTxt": "4:49"}, {"song": "奇妙能力歌", "artist": "陈粒", "bvid": "BV1k34y1N7kh", "play": 2346488, "playTxt": "234.6万", "title": "在百万豪装录音棚大声听 陈粒《奇妙能力歌》【Hi-res】", "dur": 255, "durTxt": "4:15"}, {"song": "半句再见", "artist": "孙燕姿", "bvid": "BV1rRTKzsEzW", "play": 2312652, "playTxt": "231.3万", "title": "孙燕姿《半句再见》百万豪装录音棚大声听", "dur": 244, "durTxt": "4:04"}, {"song": "容易受伤的女人", "artist": "王菲", "bvid": "BV1ot4y177sk", "play": 2211031, "playTxt": "221.1万", "title": "太美了！王菲《容易受伤的女人》是真的绝！", "dur": 260, "durTxt": "4:20"}, {"song": "手心的蔷薇", "artist": "林俊杰", "bvid": "BV1v94y1N7sv", "play": 2130130, "playTxt": "213.0万", "title": "在百万豪装录音棚大声听 林俊杰&G.E.M. 邓紫棋《手心的蔷薇》【Hi-res】", "dur": 282, "durTxt": "4:42"}, {"song": "背对背拥抱", "artist": "林俊杰", "bvid": "BV1za41197Y9", "play": 2121835, "playTxt": "212.2万", "title": "【Hi-Res无损】林俊杰《背对背拥抱》「我们背对背拥抱 滥用沉默在咆哮」动态歌词", "dur": 236, "durTxt": "3:56"}, {"song": "无与伦比的美丽", "artist": "苏打绿", "bvid": "BV1Nj411P763", "play": 2024845, "playTxt": "202.5万", "title": "在百万豪装录音棚大声听苏打绿《无与伦比的美丽》【Hi-res】", "dur": 310, "durTxt": "5:10"}, {"song": "男孩别哭", "artist": "海龟先生", "bvid": "BV11i4y1v7HA", "play": 1933867, "playTxt": "193.4万", "title": "在百万豪装录音棚大声听 海龟先生《男孩别哭》【Hi-res】", "dur": 306, "durTxt": "5:06"}, {"song": "残酷月光", "artist": "林宥嘉", "bvid": "BV1ng4y197gr", "play": 1900421, "playTxt": "190.0万", "title": "在百万豪装录音棚大声听 林宥嘉《残酷月光》【Hi-res】", "dur": 271, "durTxt": "4:31"}, {"song": "温柔", "artist": "五月天", "bvid": "BV15V411573V", "play": 1614026, "playTxt": "161.4万", "title": "在百万豪装录音棚大声听 五月天《温柔》【Hi-res】", "dur": 272, "durTxt": "4:32"}, {"song": "exile", "artist": "Taylor Swift", "bvid": "BV1MT411p7pn", "play": 1538735, "playTxt": "153.9万", "title": "exile - Taylor Swift, Bon Iver【Hi-Res】百万级装备试听", "dur": 290, "durTxt": "4:50"}, {"song": "Wildest Dreams", "artist": "Taylor Swift", "bvid": "BV1664y1a7vY", "play": 1478408, "playTxt": "147.8万", "title": "【4K修复】Wildest Dreams - Taylor Swift｜4K收藏级画质MV！", "dur": 235, "durTxt": "3:55"}, {"song": "开到荼蘼", "artist": "王菲", "bvid": "BV1Lc411A72U", "play": 1331113, "playTxt": "133.1万", "title": "在百万豪装录音棚大声听 王菲《开到荼靡》【Hi-res】", "dur": 314, "durTxt": "5:14"}, {"song": "Safe & Sound", "artist": "Taylor Swift", "bvid": "BV17W411t7yi", "play": 1307128, "playTxt": "130.7万", "title": "【收藏级画质】【中文字幕】Taylor Swift - Safe And Sound", "dur": 240, "durTxt": "4:00"}, {"song": "绝对占有相对自由", "artist": "陈粒", "bvid": "BV1KE2jBMEGB", "play": 1255045, "playTxt": "125.5万", "title": "【𝐇𝐢-𝐑𝐞𝐬无损音质】｜《绝对占有 相对自由》- 陈粒 -‘我要逆世界而行’", "dur": 336, "durTxt": "5:36"}, {"song": "Lover", "artist": "Taylor Swift", "bvid": "BV1WJ411P7MC", "play": 1245039, "playTxt": "124.5万", "title": "戴上耳机！16D版Lover-Taylor Swift", "dur": 231, "durTxt": "3:51"}, {"song": "故乡", "artist": "许巍", "bvid": "BV1oc411k7y2", "play": 1202644, "playTxt": "120.3万", "title": "在百万豪装录音棚大声听 许巍《故乡》【Hi-res】", "dur": 316, "durTxt": "5:16"}, {"song": "沉默是金", "artist": "张国荣", "bvid": "BV1kM411K7mA", "play": 1164679, "playTxt": "116.5万", "title": "在百万豪装录音棚大声听张国荣《沉默是金》【Hi-res】", "dur": 251, "durTxt": "4:11"}, {"song": "Blank Space", "artist": "Taylor Swift", "bvid": "BV12s4y1F7TN", "play": 1154221, "playTxt": "115.4万", "title": "百万级装备试听Blank Space - Taylor Swift【Hi-Res】", "dur": 232, "durTxt": "3:52"}, {"song": "巫堵", "artist": "deca joins", "bvid": "BV1UC411h7sB", "play": 1103996, "playTxt": "110.4万", "title": "\"嘿！你也抽烟嘛\" 草东《巫堵》【Hi-Res 24bit/192kHz】", "dur": 213, "durTxt": "3:33"}, {"song": "浪费", "artist": "林宥嘉", "bvid": "BV16s411Y7wz", "play": 1051766, "playTxt": "105.2万", "title": "郁可唯&林宥嘉《浪费》", "dur": 291, "durTxt": "4:51"}, {"song": "春夏秋冬", "artist": "张国荣", "bvid": "BV1uK4y1a7Sw", "play": 902757, "playTxt": "90.3万", "title": "张国荣不朽经典重新打造 《春夏秋冬》遗珠录音绝密曝光", "dur": 254, "durTxt": "4:14"}, {"song": "willow", "artist": "Taylor Swift", "bvid": "BV1zv411b7Tk", "play": 859265, "playTxt": "85.9万", "title": "【官方MV】Taylor Swift - willow", "dur": 253, "durTxt": "4:13"}, {"song": "约定", "artist": "王菲", "bvid": "BV1rsEtzyEBv", "play": 822011, "playTxt": "82.2万", "title": "王菲《约定》百万豪装录音棚大声听", "dur": 268, "durTxt": "4:28"}, {"song": "All Too Well (10 Minute Version)", "artist": "Taylor Swift", "bvid": "BV1rG411M7Sw", "play": 821645, "playTxt": "82.2万", "title": "用百万级豪华装备试听《All Too Well 》Taylor Swift (Sad Girl Autumn Version) 【Hi-Res】", "dur": 600, "durTxt": "10:00"}, {"song": "眼泪成诗", "artist": "孙燕姿", "bvid": "BV1PMWCzgEdf", "play": 768529, "playTxt": "76.9万", "title": "孙燕姿《眼泪成诗》百万豪装录音棚大声听", "dur": 220, "durTxt": "3:40"}, {"song": "你不是真正的快乐", "artist": "五月天", "bvid": "BV1f4411c7Gc", "play": 706763, "playTxt": "70.7万", "title": "【1080P修复】五月天 - 你不是真正的快乐MV", "dur": 305, "durTxt": "5:05"}, {"song": "BANG BANG BANG", "artist": "BIGBANG", "bvid": "BV13cziY4EXp", "play": 639276, "playTxt": "63.9万", "title": "【4K洗版级】BIGBANG《BANG BANG BANG》MV 2160P修复版", "dur": 229, "durTxt": "3:49"}, {"song": "好好", "artist": "五月天", "bvid": "BV1vs411W7qf", "play": 622444, "playTxt": "62.2万", "title": "【五月天】 好好 (想把你寫成一首歌) 官方MV", "dur": 225, "durTxt": "3:45"}, {"song": "Back To December", "artist": "Taylor Swift", "bvid": "BV1yk4y1K73C", "play": 518443, "playTxt": "51.8万", "title": "百万级装备试听Back To December(Taylor's Version) - Taylor Swift【Hi-Res】", "dur": 295, "durTxt": "4:55"}, {"song": "致姗姗来迟的你", "artist": "林宥嘉", "bvid": "BV13x411k7Ts", "play": 449649, "playTxt": "45.0万", "title": "【MV】阿肆 林宥嘉 - 致姗姗来迟的你", "dur": 249, "durTxt": "4:09"}, {"song": "Love Story", "artist": "Taylor Swift", "bvid": "BV1cpNHeKEXg", "play": 410231, "playTxt": "41.0万", "title": "《Love Story》——Taylor Swift “We were both young when I first saw you…”", "dur": 236, "durTxt": "3:56"}, {"song": "谁来剪月光", "artist": "陈奕迅", "bvid": "BV1xa4czeESv", "play": 392997, "playTxt": "39.3万", "title": "陈奕迅《谁来剪月光》百万豪装录音棚大声听", "dur": 212, "durTxt": "3:32"}, {"song": "斯德哥尔摩情人", "artist": "陈奕迅", "bvid": "BV1Pq4y1J7rz", "play": 379902, "playTxt": "38.0万", "title": "【4K30FPS】陈奕迅《斯德哥尔摩情人》患上斯德哥尔摩症候群的病人，爱着那个虐待自己的人", "dur": 253, "durTxt": "4:13"}, {"song": "全世界谁倾听你", "artist": "林宥嘉", "bvid": "BV1dP4y1G7Vo", "play": 334669, "playTxt": "33.5万", "title": "林宥嘉 - 全世界谁倾听你（电影《从你的全世界路过》插曲）", "dur": 259, "durTxt": "4:19"}, {"song": "矜持", "artist": "王菲", "bvid": "BV1Pr4y1t7Qx", "play": 317020, "playTxt": "31.7万", "title": "好像王菲在我面前唱《矜持》音质震撼！！！", "dur": 280, "durTxt": "4:40"}, {"song": "笑忘书", "artist": "王菲", "bvid": "BV1Gx411P7mo", "play": 290125, "playTxt": "29.0万", "title": " 王菲《笑忘书》原版MV 中文字幕", "dur": 264, "durTxt": "4:24"}, {"song": "LET'S NOT FALL IN LOVE", "artist": "BIGBANG", "bvid": "BV18r4y1i7yv", "play": 257324, "playTxt": "25.7万", "title": "【4K】BIGBANG『Let's not fall in love』官方中字MV", "dur": 230, "durTxt": "3:50"}, {"song": "BLUE", "artist": "BIGBANG", "bvid": "BV1MujPzDE6b", "play": 229229, "playTxt": "22.9万", "title": "【𝐇𝐢-𝐑𝐞𝐬无损音质】｜《BLUE》- BIGBANG -‘𝙈𝙑视听’", "dur": 234, "durTxt": "3:54"}, {"song": "成全", "artist": "林宥嘉", "bvid": "BV1gcGnz4ED2", "play": 223531, "playTxt": "22.4万", "title": "【4K Hi-Res】成全 - 林宥嘉 一个人的成全  好过三个人的纠结", "dur": 308, "durTxt": "5:08"}, {"song": "娱乐天空", "artist": "陈奕迅", "bvid": "BV1GjpreXEo9", "play": 220128, "playTxt": "22.0万", "title": "【官方ENCORE - 宁波站】《娱乐天空》｜陈奕迅FEAR AND DREAMS 宁波站｜第六场 18 AUGUST 2024 ENCORE", "dur": 418, "durTxt": "6:58"}, {"song": "燕窝", "artist": "苏打绿", "bvid": "BV1WY4y1W7Ly", "play": 208427, "playTxt": "20.8万", "title": "苏打绿 燕窝 吴青峰  鱼丁糸（画面修复，音源替换）", "dur": 307, "durTxt": "5:07"}, {"song": "他夏了夏天", "artist": "苏打绿", "bvid": "BV1VF411T7PD", "play": 198882, "playTxt": "19.9万", "title": "【4K母带修复】苏打绿/鱼丁糸 - 他夏了夏天 高画质完整版MV", "dur": 310, "durTxt": "5:10"}, {"song": "LAST DANCE", "artist": "BIGBANG", "bvid": "BV1ts411e7Yu", "play": 188278, "playTxt": "18.8万", "title": "【bigbang】中韩字幕 - LAST DANCE", "dur": 297, "durTxt": "4:57"}, {"song": "LOSER", "artist": "BIGBANG", "bvid": "BV1e7jAzxEzk", "play": 184557, "playTxt": "18.5万", "title": "【𝐇𝐢-𝐑𝐞𝐬无损音质】｜《LOSER》- BIGBANG -‘𝙈𝙑视听’", "dur": 220, "durTxt": "3:40"}, {"song": "IF YOU", "artist": "BIGBANG", "bvid": "BV12vMP65E7B", "play": 177403, "playTxt": "17.7万", "title": "【𝐇𝐢-𝐑𝐞𝐬无损音质】｜《IF YOU》- BIGBANG -", "dur": 265, "durTxt": "4:25"}, {"song": "BAD BOY", "artist": "BIGBANG", "bvid": "BV1Ep4y1w79N", "play": 177359, "playTxt": "17.7万", "title": "日推歌单｜一封道歉的告白书《Bad Boy》-BIGBANG", "dur": 237, "durTxt": "3:57"}, {"song": "旅行", "artist": "许巍", "bvid": "BV1rk4y1Q7oZ", "play": 154966, "playTxt": "15.5万", "title": "【Hi-Res无损】《旅行》许巍 - 阵阵晚风吹动着松涛  吹响这风铃声如天籁", "dur": 264, "durTxt": "4:24"}, {"song": "GIRLFRIEND", "artist": "BIGBANG", "bvid": "BV1Fx411X71P", "play": 120218, "playTxt": "12.0万", "title": "BIGBANG - GIRLFRIEND", "dur": 229, "durTxt": "3:49"}, {"song": "风吹麦浪", "artist": "李健", "bvid": "BV1orpR6GECV", "play": 108185, "playTxt": "10.8万", "title": "李健《风吹麦浪》百万豪装录音棚大声听", "dur": 250, "durTxt": "4:10"}, {"song": "费洛蒙小姐", "artist": "吴青峰", "bvid": "BV1et4y1i72P", "play": 99618, "playTxt": "10.0万", "title": "吴青峰〈费洛蒙小姐〉官方 MV", "dur": 351, "durTxt": "5:51"}, {"song": "death bed (feat. beabadoobee)", "artist": "Powfu", "bvid": "BV1kZ4y1j7P4", "play": 92786, "playTxt": "9.3万", "title": "death bed - Powfu&beabadoobee", "dur": 174, "durTxt": "2:54"}, {"song": "我很想爱他", "artist": "林俊杰", "bvid": "BV1Mj411n7UP", "play": 78067, "playTxt": "7.8万", "title": "我很想爱他 - 林俊杰【Hi-Res无损音质】", "dur": 262, "durTxt": "4:22"}, {"song": "BAE BAE", "artist": "BIGBANG", "bvid": "BV1rY4y157vr", "play": 59825, "playTxt": "6.0万", "title": "【4K 60P HDR】中字 MV BIGBANG - BAEBAE", "dur": 175, "durTxt": "2:55"}, {"song": "說了再見以後", "artist": "苏打绿", "bvid": "BV1Sh4y1x7s5", "play": 51014, "playTxt": "5.1万", "title": "【4K私藏】苏打绿《说了再见以后》MV", "dur": 277, "durTxt": "4:37"}, {"song": "追", "artist": "张国荣", "bvid": "BV1mW421A7TM", "play": 44581, "playTxt": "4.5万", "title": "《追》-张国荣-1995年-专辑:《宠爱》【无损】", "dur": 322, "durTxt": "5:22"}, {"song": "我", "artist": "张国荣", "bvid": "BV1b54y1y7o4", "play": 33669, "playTxt": "3.4万", "title": "【官方MV】张国荣《我(国语版)》原版MV，“我就是我，是颜色不一样的烟火”", "dur": 231, "durTxt": "3:51"}, {"song": "FXXK IT", "artist": "BIGBANG", "bvid": "BV1cxCtBpEN5", "play": 26549, "playTxt": "2.7万", "title": "【4K 60FPS－中文字幕】BIGBANG - FXXK IT MV", "dur": 244, "durTxt": "4:04"}, {"song": "碳酸", "artist": "陆政廷", "bvid": "BV1qE411o7sv", "play": 11703, "playTxt": "1.2万", "title": "陆政廷Lil_Jet -《碳酸》原创字幕MV", "dur": 173, "durTxt": "2:53"}, {"song": "无心睡眠", "artist": "张国荣", "bvid": "BV1T7421o7DA", "play": 11262, "playTxt": "1.1万", "title": "张国荣《无心睡眠》无损音质【Hi-Res】", "dur": 195, "durTxt": "3:15"}, {"song": "Roaring Tides", "artist": "Cat Trumpet", "bvid": "BV1MW411p7Ew", "play": 6965, "playTxt": "6965", "title": "【指弹吉他】Clannad OST - Roaring Tides【Eddie van der Meer】", "dur": 94, "durTxt": "1:34"}, {"song": "贪得", "artist": "陈粒", "bvid": "BV1EU2qYZEpH", "play": 5752, "playTxt": "5752", "title": "陈粒-贪得【𝗛𝗶-𝗥𝗲𝘀无损】", "dur": 453, "durTxt": "7:33"}, {"song": "Call It What You Want", "artist": "Taylor Swift", "bvid": "BV1pDeMe6E1v", "play": 1863, "playTxt": "1863", "title": "Taylor Swift - Call It What You Want【𝗛𝗶-𝗥𝗲𝘀无损】", "dur": 204, "durTxt": "3:24"}, {"song": "거짓말(谎言)", "artist": "BIGBANG", "bvid": "BV1c48u6rEx3", "play": 1696, "playTxt": "1696", "title": "【𝟰𝗞修复】BIGBANG 《거짓말（Lies）》MV 𝗛𝗶-𝗥𝗲𝘀无损音质 出道𝟮𝟬周年", "dur": 294, "durTxt": "4:54"}];
+let current = -1;
+let playMode = 'list';       // list | random | one
+let autoNext = true;         // 是否自动连播
+let unlocked = false;        // 浏览器里需要一次用户点击才允许自动播放
+let iframeEl = null;         // 复用的播放器 iframe
+let isPaused = false;        // 是否暂停
+let curDur = 0;              // 当前曲时长(秒)
+let seeking = false;         // 是否正在拖动进度条
+let nextLock = 0;            // 切歌冷却，防止重复触发
+let userPaused = false;      // 用户是否手动暂停
+let nudgeLeft = 0;           // 自动播放兜底重试次数
+let loadAt = 0;              // 本首开始播放的时间戳（浏览器兜底联网用）
+
+const playerBox = document.getElementById('playerBox');
+const listEl = document.getElementById('list');
+const barEl = document.getElementById('bar');
+const ptimeEl = document.getElementById('ptime');
+const unlockBox = document.getElementById('unlockBox');
+const IS_ELECTRON = navigator.userAgent.indexOf('Electron') >= 0;
+
+// ===== 歌单存储：整张歌单都存在本地，可以完全自己增删 =====
+const DEFAULT_SONGS = SONGS.slice();     // 内置默认歌单的原始副本（「恢复默认」用）
+const PL_KEY = 'myList_v1';              // 本地歌单的存储键
+
+(function applyStoredList() {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(PL_KEY)); } catch (e) { }
+  if (Array.isArray(raw)) {
+    SONGS.length = 0;
+    raw.forEach(function (s) { if (s && s.bvid) SONGS.push(s); });
+    return;
+  }
+  // 兼容早期版本：那时候 mySongs 里只放"自己加的"，默认歌单写死在页面里
+  let old = null;
+  try { old = JSON.parse(localStorage.getItem('mySongs') || '[]'); } catch (e) { }
+  if (Array.isArray(old)) {
+    old.forEach(function (s) {
+      if (s && s.bvid && !SONGS.some(function (x) { return x.bvid === s.bvid; })) SONGS.push(s);
+    });
+  }
+})();
+SONGS.sort(function (a, b) { return (b.play || 0) - (a.play || 0); });
+
+function saveList() {
+  try { localStorage.setItem(PL_KEY, JSON.stringify(SONGS)); } catch (e) { }
+}
+
+// ===== 数据版本迁移 =====
+// 内置歌单更新时（比如把「现场版」统一换成录音室原版），
+// 把你本地歌单里同一首的歌同步成新版本，但你自己加的歌、删的歌照旧保留。
+const LIST_VER = 'v2-studio';
+(function migrateListVersion() {
+  let ver = null;
+  try { ver = localStorage.getItem('myList_ver'); } catch (e) { }
+  if (ver === LIST_VER) return;
+  const map = {};
+  DEFAULT_SONGS.forEach(function (s) { map[s.song + '|' + (s.artist || '')] = s; });
+  let changed = false;
+  SONGS.forEach(function (s) {
+    const n = map[s.song + '|' + (s.artist || '')];
+    if (n && n.bvid && n.bvid !== s.bvid) {
+      s.bvid = n.bvid;
+      s.title = n.title;
+      s.dur = n.dur;
+      s.durTxt = n.durTxt;
+      s.play = n.play;
+      s.playTxt = n.playTxt;
+      changed = true;
+    }
+  });
+  try { localStorage.setItem('myList_ver', LIST_VER); } catch (e) { }
+  if (changed) saveList();
+})();
+
+function esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+function fmtDur(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+}
+
+// ===== 搜索过滤（只筛显示，不动原始顺序）=====
+let keyword = '';
+function matches(s, kw) {
+  return String(s.song || '').toLowerCase().indexOf(kw) >= 0
+    || String(s.artist || '').toLowerCase().indexOf(kw) >= 0
+    || String(s.title || '').toLowerCase().indexOf(kw) >= 0;
+}
+
+// ===== 渲染歌单 =====
+function renderList() {
+  listEl.innerHTML = '';
+  const kw = keyword.trim().toLowerCase();
+  const view = [];
+  SONGS.forEach(function (s, i) { if (!kw || matches(s, kw)) view.push({ s: s, i: i }); });
+
+  const ltEl = document.getElementById('listTitle');
+  if (kw) ltEl.innerHTML = '🔍「' + esc(keyword.trim()) + '」找到 <span id="total"></span> 首 · 点右侧 ✕ 就能删';
+  else ltEl.innerHTML = '歌单（共 <span id="total"></span> 首 · 按播放量排序）';
+
+  if (!SONGS.length) {
+    listEl.innerHTML = '<div class="empty">歌单还是空的 🙂<br>'
+      + '点上面的「➕ 添加歌曲」，输入歌名搜一下就能加<br>'
+      + '也可以点「⬆ 导入歌单」导入别人分享给你的 JSON</div>';
+    document.getElementById('total').textContent = '0';
+    const uh0 = document.getElementById('unlockHint');
+    if (uh0) uh0.textContent = '↓ 先往歌单里加几首歌吧';
+    return;
+  }
+
+  if (!view.length) {
+    listEl.innerHTML = '<div class="empty">没找到「' + esc(keyword.trim()) + '」🙂<br>'
+      + '换个词试试 · 或者点搜索框右边的「✕」看全部</div>';
+    document.getElementById('total').textContent = '0';
+    const uhx = document.getElementById('unlockHint');
+    if (uhx) uhx.textContent = '↓ 下方是完整歌单（共 ' + SONGS.length + ' 首）';
+    return;
+  }
+
+  view.forEach(function (o) {
+    const s = o.s, i = o.i;
+    const d = document.createElement('div');
+    d.className = 'item';
+    d.dataset.idx = i;
+    d.innerHTML = '<div class="rank">' + (i + 1) + '</div>'
+      + '<div class="s">' + esc(s.song) + '</div>'
+      + '<div class="a">' + esc(s.artist) + '</div>'
+      + '<div class="dur">' + esc(s.durTxt || (s.dur ? fmtDur(s.dur) : '—')) + '</div>'
+      + '<div class="pc">' + (s.playTxt ? '▶ ' + esc(s.playTxt) : '') + '</div>'
+      + '<button class="del" title="从歌单删掉这首">✕</button>';
+    if (i === current) d.classList.add('playing');
+    d.onclick = function () { playIndex(i); };
+    d.querySelector('.del').onclick = function (ev) {
+      ev.stopPropagation();
+      removeAt(i);
+    };
+    listEl.appendChild(d);
+  });
+  document.getElementById('total').textContent = view.length;
+  const uh = document.getElementById('unlockHint');
+  if (uh) uh.textContent = '↓ 下方是完整歌单（共 ' + SONGS.length + ' 首）';
+}
+
+// ===== 删掉某一首 =====
+function removeAt(i) {
+  if (i < 0 || i >= SONGS.length) return;
+  const wasCur = (i === current);
+  SONGS.splice(i, 1);
+  saveList();
+  renderList();
+  if (!SONGS.length) {
+    current = -1;
+    if (iframeEl) iframeEl.src = 'about:blank';
+    document.getElementById('nowSong').textContent = '歌单是空的';
+    document.getElementById('nowArtist').textContent = '';
+    document.getElementById('nowMeta').textContent = '';
+    document.getElementById('idxTxt').textContent = '';
+    barEl.style.width = '0%';
+    ptimeEl.textContent = '0:00 / 0:00';
+    return;
+  }
+  if (wasCur) playIndex(Math.min(i, SONGS.length - 1));
+  else if (i < current) { current--; updateNow(current); }
+}
+
+function updateNow(i) {
+  const s = SONGS[i];
+  document.getElementById('nowSong').textContent = s.song;
+  document.getElementById('nowArtist').textContent = s.artist || '';
+  document.getElementById('nowMeta').textContent =
+    (s.playTxt ? '播放量 ' + s.playTxt + ' · ' : '') + '时长 ' + (s.durTxt || (s.dur ? fmtDur(s.dur) : '未知'));
+  document.getElementById('idxTxt').textContent = (i + 1) + ' / ' + SONGS.length;
+  document.querySelectorAll('.item').forEach(function (el) {
+    el.classList.toggle('playing', Number(el.dataset.idx) === i);
+  });
+}
+
+// ===== 加载某一首（复用同一个播放器，只改地址）=====
+function loadIndex(i) {
+  const s = SONGS[i];
+  const url = 'https://player.bilibili.com/player.html?bvid=' + s.bvid
+    + '&high_quality=1&danmaku=0&autoplay=1';
+  if (!iframeEl) {
+    iframeEl = document.createElement('iframe');
+    iframeEl.setAttribute('scrolling', 'no');
+    iframeEl.setAttribute('frameborder', 'no');
+    iframeEl.setAttribute('allowfullscreen', 'true');
+    iframeEl.setAttribute('allow', 'autoplay; fullscreen; encrypted-media');
+    iframeEl.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+    playerBox.appendChild(iframeEl);
+  }
+  iframeEl.src = url;
+  barEl.style.width = '0%';
+  ptimeEl.textContent = '0:00 / ' + (s.durTxt || (s.dur ? fmtDur(s.dur) : '--:--'));
+  curDur = s.dur || 0;
+  isPaused = false;
+  userPaused = false;
+  nudgeLeft = 3;
+  loadAt = Date.now();
+  const bp = document.getElementById('btnPlay');
+  if (bp) bp.textContent = '⏸ 暂停';
+}
+
+function playIndex(i) {
+  if (!SONGS.length) { renderList(); return; }
+  if (i < 0 || i >= SONGS.length) i = 0;
+  current = i;
+  updateNow(i);
+  if (unlocked) { loadIndex(i); nextLock = Date.now() + 2500; }
+  else { barEl.style.width = '0%'; }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function playNext() {
+  if (!SONGS.length) return;
+  if (current < 0) { playIndex(0); return; }
+  if (playMode === 'one') { playIndex(current); return; }
+  let next;
+  if (playMode === 'random') {
+    do { next = Math.floor(Math.random() * SONGS.length); } while (next === current && SONGS.length > 1);
+  } else {
+    next = (current + 1) % SONGS.length;
+  }
+  playIndex(next);
+}
+
+// ===== 读播放器真实进度，同步进度条 & 自动切歌 =====
+// 关键：判断依据是视频本身的 currentTime / duration，
+// 所以无论你怎么拖动 B 站进度条，只要这首歌真正播完，就会自动切下一首
+async function pollState() {
+  if (!iframeEl) return;
+  if (!(window.__playerCtl && window.__playerCtl.state)) { pollBrowser(); return; }
+  let st = null;
+  try { st = await window.__playerCtl.state(); } catch (e) { return; }
+  if (!st || !st.d || !isFinite(st.d) || st.d <= 0) return;
+
+  curDur = st.d;
+  if (!seeking) {
+    barEl.style.width = Math.min(100, st.t / st.d * 100) + '%';
+    ptimeEl.textContent = fmtDur(st.t) + ' / ' + fmtDur(st.d);
+  }
+  // 暂停状态双向同步（你在播放器里点暂停，按钮也会跟着变）
+  if (st.p !== isPaused) {
+    isPaused = st.p;
+    const bp = document.getElementById('btnPlay');
+    if (bp) bp.textContent = isPaused ? '▶ 继续' : '⏸ 暂停';
+  }
+  // 真正播完 → 切下一首（留 1.2 秒余量）
+  if (autoNext && st.d > 2 && st.t >= st.d - 1.2 && Date.now() > nextLock) {
+    nextLock = Date.now() + 2500;
+    playNext();
+    return;
+  }
+  // 兜底：刚切歌时若没自动播起来，主动催一下
+  if (!userPaused && st.p && st.t < 3 && nudgeLeft > 0 && Date.now() > nextLock) {
+    nudgeLeft--;
+    controlVideo('play');
+  }
+}
+
+// ===== 浏览器里没有 Electron 通道，用"已知时长 + 计时"兜底自动连播 =====
+function pollBrowser() {
+  if (!unlocked) return;
+  if (userPaused) return;
+  const total = (curDur && curDur > 0) ? curDur : 240;   // 网页版拿不到时长时按 4 分钟估
+  const el = (Date.now() - loadAt) / 1000;
+  if (el > total + 60) return;
+  if (!seeking) {
+    barEl.style.width = Math.min(100, el / total * 100) + '%';
+    ptimeEl.textContent = fmtDur(Math.min(el, total)) + ' / ' + (curDur > 0 ? fmtDur(curDur) : '--:--');
+  }
+  if (autoNext && el >= total - 1.0 && Date.now() > nextLock) {
+    nextLock = Date.now() + 2500;
+    playNext();
+  }
+}
+
+// ===== 控制播放器（暂停/播放）=====
+function findVideo(win) {
+  try { const v = win.document.querySelector('video'); if (v) return v; } catch (e) { }
+  try {
+    const fs = win.document.querySelectorAll('iframe');
+    for (let i = 0; i < fs.length; i++) {
+      try { const r = findVideo(fs[i].contentWindow); if (r) return r; } catch (e) { }
+    }
+  } catch (e) { }
+  return null;
+}
+
+function controlVideo(action) {
+  try {
+    if (window.__playerCtl && window.__playerCtl.control) {
+      window.__playerCtl.control(action);
+      return true;
+    }
+  } catch (e) { }
+  if (!iframeEl) return false;
+  try {
+    const v = findVideo(iframeEl.contentWindow);
+    if (v) { action === 'pause' ? v.pause() : v.play(); return true; }
+  } catch (e) { }
+  try {
+    iframeEl.contentWindow.postMessage(JSON.stringify({ command: action }), '*');
+    iframeEl.contentWindow.postMessage({ type: action }, '*');
+  } catch (e) { }
+  return false;
+}
+
+// ===== 解锁（浏览器要求首次播放需用户点击）=====
+function ensureUnlocked() {
+  if (unlocked) return;
+  unlocked = true;
+  unlockBox.classList.add('hide');
+  loadIndex(current < 0 ? 0 : current);
+  nextLock = Date.now() + 2500;
+}
+unlockBox.onclick = ensureUnlocked;
+document.addEventListener('click', function () { if (!unlocked) ensureUnlocked(); }, true);
+
+// ===== 按钮 =====
+document.getElementById('btnNext').onclick = playNext;
+
+document.getElementById('btnPlay').onclick = function () {
+  const willPause = !isPaused;
+  controlVideo(willPause ? 'pause' : 'play');
+  isPaused = willPause;
+  userPaused = willPause;
+  if (!willPause) nudgeLeft = 3;
+  this.textContent = willPause ? '▶ 继续' : '⏸ 暂停';
+};
+
+// ===== 进度条点击/拖动跳转 =====
+function seekByEvent(e) {
+  if (curDur <= 0) return;
+  const rect = document.getElementById('progress').getBoundingClientRect();
+  let pct = (e.clientX - rect.left) / rect.width;
+  pct = Math.min(1, Math.max(0, pct));
+  barEl.style.width = (pct * 100) + '%';
+  ptimeEl.textContent = fmtDur(pct * curDur) + ' / ' + fmtDur(curDur);
+  if (window.__playerCtl && window.__playerCtl.seek) window.__playerCtl.seek(pct * curDur);
+  else loadAt = Date.now() - pct * curDur * 1000;   // 浏览器兜底：把计时基线挪过去
+}
+(function () {
+  const pr = document.getElementById('progress');
+  pr.addEventListener('mousedown', function () { seeking = true; });
+  document.addEventListener('mouseup', function () { seeking = false; });
+  pr.addEventListener('click', seekByEvent);
+})();
+
+// ===== 播放模式 =====
+document.querySelectorAll('.mode-btn[data-mode]').forEach(function (btn) {
+  btn.onclick = function () {
+    playMode = btn.dataset.mode;
+    document.querySelectorAll('.mode-btn[data-mode]').forEach(function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    document.getElementById('modeTxt').textContent =
+      { list: '列表播放', random: '随机播放', one: '单曲循环' }[playMode];
+  };
+});
+
+// ===== 自动连播开关 =====
+const autoChk = document.getElementById('autoChk');
+const autoSwitch = document.getElementById('autoSwitch');
+function syncAuto() {
+  autoNext = autoChk.checked;
+  document.getElementById('autoTxt').textContent = '自动连播：' + (autoNext ? '开' : '关');
+  autoSwitch.classList.toggle('on', autoNext);
+}
+autoChk.onchange = syncAuto;
+
+// ===== 歌单搜索框：一边打字一边筛，找到直接删 =====
+const searchBarEl = document.getElementById('searchBar');
+const inpSearchEl = document.getElementById('inpSearch');
+inpSearchEl.addEventListener('input', function () {
+  keyword = inpSearchEl.value;
+  searchBarEl.classList.toggle('has', !!keyword.trim());
+  renderList();
+});
+inpSearchEl.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') document.getElementById('btnSearchClear').click();
+});
+document.getElementById('btnSearchClear').onclick = function () {
+  inpSearchEl.value = '';
+  keyword = '';
+  searchBarEl.classList.remove('has');
+  renderList();
+  inpSearchEl.focus();
+};
+
+// 增删整张歌单时，把搜索过滤一起清掉（否则用户会以为操作没生效）
+function clearSearch() {
+  if (!keyword && !inpSearchEl.value) return;
+  inpSearchEl.value = '';
+  keyword = '';
+  searchBarEl.classList.remove('has');
+}
+
+// ===== 添加歌曲 =====
+const srListEl = document.getElementById('srList');
+const manualRow = document.getElementById('manualRow');
+
+function setAddMsg(text, cls) {
+  const el = document.getElementById('addMsg');
+  el.textContent = text || '';
+  el.className = 'addmsg' + (cls ? ' ' + cls : '');
+}
+
+// 把一首歌加进歌单（查重 + 重排 + 存盘 + 重绘）
+function addSongObj(info) {
+  if (!info || !info.bvid) return false;
+  if (SONGS.some(function (x) { return x.bvid === info.bvid; })) return false;
+  info.__custom = true;
+  SONGS.push(info);
+  SONGS.sort(function (a, b) { return (b.play || 0) - (a.play || 0); });
+  saveList();
+  clearSearch();   // 让新加的歌立刻可见
+  renderList();
+  return true;
+}
+
+// 渲染搜索结果（点「＋ 添加」直接入歌单）
+function renderSearchResults(list) {
+  srListEl.innerHTML = '';
+  list.forEach(function (it) {
+    const d = document.createElement('div');
+    d.className = 'sritem';
+    d.innerHTML = '<div class="srmain">'
+      + '<div class="srt">' + esc(it.title) + '</div>'
+      + '<div class="sra">' + esc(it.artist) + ' · ' + esc(it.durTxt) + ' · ▶ ' + esc(it.playTxt)
+      + (it.suspect ? ' · <span class="srwarn">⚠ 疑似' + esc(it.suspect) + '</span>' : '')
+      + '</div></div>';
+    const b = document.createElement('button');
+    if (SONGS.some(function (x) { return x.bvid === it.bvid; })) {
+      b.className = 'sradd done';
+      b.textContent = '已在歌单';
+    } else {
+      b.className = 'sradd';
+      b.textContent = '＋ 添加';
+      b.onclick = function () {
+        if (addSongObj({
+          song: it.song, artist: it.artist, bvid: it.bvid, play: it.play,
+          playTxt: it.playTxt, title: it.title, dur: it.dur, durTxt: it.durTxt
+        })) {
+          b.className = 'sradd done';
+          b.textContent = '已添加 ✓';
+          setAddMsg('✅ 已添加：' + it.song + (it.artist ? ' - ' + it.artist : '') + '（' + it.durTxt + '）', 'ok');
+        }
+      };
+    }
+    d.appendChild(b);
+    srListEl.appendChild(d);
+  });
+}
+
+// 直接按 BV 号添加（粘贴链接的场景）
+async function addByBvid(bvid) {
+  if (SONGS.some(function (x) { return x.bvid === bvid; })) { setAddMsg('这首歌已经在歌单里了', 'err'); return; }
+  const nm = document.getElementById('inpSong').value.trim();
+  const ar = document.getElementById('inpArtist').value.trim();
+  if (window.__playerCtl && window.__playerCtl.addSong) {
+    setAddMsg('正在获取视频信息…');
+    let info = null;
+    try { info = await window.__playerCtl.addSong({ bvid: bvid, song: nm, artist: ar }); } catch (e) { }
+    if (!info || info.error) { setAddMsg((info && info.error) || '添加失败，请重试', 'err'); return; }
+    addSongObj(info);
+    setAddMsg('✅ 已添加：' + info.song + (info.artist ? ' - ' + info.artist : '')
+      + (info.durTxt ? '（' + info.durTxt + '）' : ''), 'ok');
+    document.getElementById('inpQuery').value = '';
+    srListEl.innerHTML = '';
+    manualRow.style.display = 'none';
+  } else {
+    // 网页版读不到 B 站接口（跨域），退化成手动填歌名
+    if (!nm) {
+      manualRow.style.display = 'flex';
+      setAddMsg('网页版读不到视频标题 —— 把「歌名」填上，再点一次按钮就行', 'err');
+      document.getElementById('inpSong').focus();
+      return;
+    }
+    addSongObj({ song: nm, artist: ar, bvid: bvid, play: 0, playTxt: '', title: nm, dur: 0, durTxt: '' });
+    setAddMsg('✅ 已添加：' + nm + (ar ? ' - ' + ar : '')
+      + '（网页版读不到播放量/时长，正常现象）', 'ok');
+    document.getElementById('inpQuery').value = '';
+    document.getElementById('inpSong').value = '';
+    document.getElementById('inpArtist').value = '';
+    manualRow.style.display = 'none';
+  }
+}
+
+document.getElementById('btnAdd').onclick = function () {
+  const p = document.getElementById('addPanel');
+  p.classList.toggle('show');
+  if (p.classList.contains('show')) document.getElementById('inpQuery').focus();
+};
+document.getElementById('btnAddCancel').onclick = function () {
+  document.getElementById('addPanel').classList.remove('show');
+  srListEl.innerHTML = '';
+  manualRow.style.display = 'none';
+};
+document.getElementById('inpQuery').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') document.getElementById('btnAddOk').click();
+});
+
+// 主按钮：输入里有 BV 号就直接加；否则按歌名/歌手去 B 站搜
+document.getElementById('btnAddOk').onclick = async function () {
+  const q = document.getElementById('inpQuery').value.trim();
+  if (!q) {
+    setAddMsg('先输入歌名（或「歌名 歌手」）；也可以粘贴 B 站链接 / BV 号', 'err');
+    document.getElementById('inpQuery').focus();
+    return;
+  }
+
+  const m = q.match(/BV[0-9A-Za-z]{10}/);
+  if (m) { await addByBvid(m[0]); return; }
+
+  if (!(window.__playerCtl && window.__playerCtl.search)) {
+    setAddMsg('网页版受浏览器跨域限制，没法自动搜 B 站 —— 桌面版(.exe)可以按歌名直接搜；'
+      + '这里请粘贴 B 站链接 / BV 号来加歌', 'err');
+    return;
+  }
+
+  setAddMsg('正在搜「' + q + '」…');
+  srListEl.innerHTML = '';
+  let r = null;
+  try { r = await window.__playerCtl.search(q); } catch (e) { }
+  if (!r || r.error) { setAddMsg((r && r.error) || '搜索失败，请重试', 'err'); return; }
+  renderSearchResults(r.list || []);
+  setAddMsg('找到 ' + (r.list || []).length + ' 个结果 · 点右侧「＋ 添加」挑一个'
+    + '（带 ⚠ 的可能是翻唱/合集/乐器版，注意挑原唱）', 'ok');
+};
+
+// ===== 危险操作要"再点一次"确认，避免误点 =====
+function armConfirm(btn, confirmText, fn) {
+  let armed = false, timer = null;
+  const orig = btn.innerHTML;
+  btn.onclick = function () {
+    if (!armed) {
+      armed = true;
+      btn.innerHTML = confirmText;
+      btn.classList.add('armed');
+      timer = setTimeout(function () {
+        armed = false; btn.innerHTML = orig; btn.classList.remove('armed');
+      }, 3000);
+      return;
+    }
+    clearTimeout(timer);
+    armed = false;
+    btn.innerHTML = orig;
+    btn.classList.remove('armed');
+    fn();
+  };
+}
+
+// ===== 清空歌单 =====
+armConfirm(document.getElementById('btnClear'), '再点一次 = 清空', function () {
+  SONGS.length = 0;
+  saveList();
+  clearSearch();
+  renderList();
+  current = -1;
+  if (iframeEl) { try { iframeEl.src = 'about:blank'; } catch (e) { } }
+  document.getElementById('nowSong').textContent = '歌单是空的';
+  document.getElementById('nowArtist').textContent = '';
+  document.getElementById('nowMeta').textContent = '';
+  document.getElementById('idxTxt').textContent = '';
+  barEl.style.width = '0%';
+  ptimeEl.textContent = '0:00 / 0:00';
+  document.getElementById('addPanel').classList.add('show');
+  setAddMsg('歌单已清空 —— 点「➕ 添加歌曲」开始建你自己的歌单', 'ok');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+// ===== 恢复默认歌单 =====
+armConfirm(document.getElementById('btnReset'), '再点一次 = 恢复', function () {
+  SONGS.length = 0;
+  DEFAULT_SONGS.forEach(function (s) { SONGS.push(s); });
+  SONGS.sort(function (a, b) { return (b.play || 0) - (a.play || 0); });
+  saveList();
+  clearSearch();
+  renderList();
+  document.getElementById('addPanel').classList.add('show');
+  setAddMsg('已恢复内置默认歌单，共 ' + SONGS.length + ' 首', 'ok');
+  if (unlocked) playIndex(0);
+});
+
+// ===== 导出歌单 =====
+document.getElementById('btnExport').onclick = function () {
+  document.getElementById('addPanel').classList.add('show');
+  if (!SONGS.length) { setAddMsg('歌单是空的，先加几首歌再导出', 'err'); return; }
+  const blob = new Blob([JSON.stringify(SONGS, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '我的歌单.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+  setAddMsg('✅ 已导出 ' + SONGS.length + ' 首，把 我的歌单.json 发给朋友即可', 'ok');
+};
+
+// ===== 导入歌单 =====
+document.getElementById('btnImport').onclick = function () {
+  document.getElementById('fileImport').click();
+};
+document.getElementById('fileImport').onchange = function (e) {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  document.getElementById('addPanel').classList.add('show');
+  const r = new FileReader();
+  r.onload = function () {
+    let arr = null;
+    try { arr = JSON.parse(r.result); } catch (err) { }
+    if (!Array.isArray(arr)) { setAddMsg('导入失败：文件格式不对（要页面导出的那个 .json）', 'err'); return; }
+    const clean = arr.filter(function (x) {
+      return x && x.bvid && String(x.bvid).indexOf('BV') === 0 && x.song;
+    });
+    if (!clean.length) { setAddMsg('导入失败：文件里没有有效的歌', 'err'); return; }
+    SONGS.length = 0;
+    clean.forEach(function (x) { SONGS.push(x); });
+    SONGS.sort(function (a, b) { return (b.play || 0) - (a.play || 0); });
+    saveList();
+    clearSearch();
+    renderList();
+    if (unlocked && SONGS.length) playIndex(0);
+    setAddMsg('✅ 导入成功，现在共 ' + SONGS.length + ' 首', 'ok');
+  };
+  r.readAsText(f);
+  e.target.value = '';
+};
+
+// ===== 初始化 =====
+renderList();
+syncAuto();
+
+if (IS_ELECTRON) {
+  unlocked = true;
+  unlockBox.classList.add('hide');
+}
+
+if (SONGS.length) playIndex(0);
+setInterval(pollState, 1000);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# 依赖
+node_modules/
+
+# 打包产物
+dist/
+dist_v*/
+build/
+release/
+*.exe
+*.msi
+*.zip
+*.7z
+
+# 日志与临时文件
+npm-debug.log*
+yarn-error.log*
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,50 @@
+{
+  "name": "my-playlist",
+  "version": "1.2.1",
+  "description": "我的歌单 · 自动连播（可搜索、可自己增删歌单）",
+  "main": "main.js",
+  "author": "我的歌单",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.my.playlist",
+    "productName": "我的歌单",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "我的歌单_自动连播.html",
+      "music_icon.ico"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "music_icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "我的歌单",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "我的歌单-安装程序.exe",
+      "uninstallDisplayName": "我的歌单"
+    },
+    "portable": {
+      "artifactName": "我的歌单-免安装.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3"
+  }
+}
